@@ -8,7 +8,7 @@ import {
 import Login from "./pages/Login"
 import Signup from "./pages/Signup"
 
-import Dashboard from "./components/Dashboard"
+import Dashboard from "./pages/Dashboard"
 
 function App() {
 
