@@ -18,14 +18,31 @@ function Signup() {
   const [password, setPassword] =
     useState("")
 
+  const [loading, setLoading] =
+    useState(false)
+
   async function handleSignup() {
 
+    if (
+      !name ||
+      !email ||
+      !password
+    ) {
+
+      alert("Please fill all fields")
+
+      return
+
+    }
+
     try {
+
+      setLoading(true)
 
       const response =
         await fetch(
 
-          "http://localhost:5000/api/auth/signup",
+          `${import.meta.env.VITE_API_URL}/api/auth/signup`,
 
           {
 
@@ -53,21 +70,31 @@ function Signup() {
       const data =
         await response.json()
 
-      console.log(data)
+      if (!response.ok) {
 
-      localStorage.setItem(
+        alert(
+          data.message || "Signup failed"
+        )
 
-        "token",
+        setLoading(false)
 
-        data.token
+        return
 
-      )
+      }
 
-      navigate("/dashboard")
+      alert("Signup successful")
+
+      navigate("/")
 
     } catch (error) {
 
       console.log(error)
+
+      alert("Server error")
+
+    } finally {
+
+      setLoading(false)
 
     }
 
@@ -79,9 +106,13 @@ function Signup() {
 
       <div style={styles.card}>
 
-        <h1>
-          Signup
+        <h1 style={styles.title}>
+          DevMind AI
         </h1>
+
+        <p style={styles.subtitle}>
+          Create your account
+        </p>
 
         <input
 
@@ -137,11 +168,37 @@ function Signup() {
 
           style={styles.button}
 
+          disabled={loading}
+
         >
 
-          Signup
+          {
+            loading
+              ? "Loading..."
+              : "Signup"
+          }
 
         </button>
+
+        <p style={styles.text}>
+
+          Already have an account?{" "}
+
+          <span
+
+            onClick={() =>
+              navigate("/")
+            }
+
+            style={styles.link}
+
+          >
+
+            Login
+
+          </span>
+
+        </p>
 
       </div>
 
@@ -181,7 +238,30 @@ const styles = {
 
     gap: "20px",
 
-    width: "400px"
+    width: "400px",
+
+    boxShadow:
+      "0 0 30px rgba(0,0,0,0.5)"
+
+  },
+
+  title: {
+
+    color: "white",
+
+    textAlign: "center",
+
+    marginBottom: "0px"
+
+  },
+
+  subtitle: {
+
+    color: "#94a3b8",
+
+    textAlign: "center",
+
+    marginTop: "-10px"
 
   },
 
@@ -197,7 +277,9 @@ const styles = {
 
     color: "white",
 
-    fontSize: "16px"
+    fontSize: "16px",
+
+    outline: "none"
 
   },
 
@@ -216,10 +298,31 @@ const styles = {
 
     fontSize: "16px",
 
-    cursor: "pointer"
+    cursor: "pointer",
+
+    fontWeight: "bold"
+
+  },
+
+  text: {
+
+    color: "white",
+
+    textAlign: "center"
+
+  },
+
+  link: {
+
+    color: "#8b5cf6",
+
+    cursor: "pointer",
+
+    fontWeight: "bold"
 
   }
 
 }
 
 export default Signup
+
