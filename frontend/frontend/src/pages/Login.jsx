@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 
 import {
@@ -15,14 +16,27 @@ function Login() {
   const [password, setPassword] =
     useState("")
 
+  const [loading, setLoading] =
+    useState(false)
+
   async function handleLogin() {
 
+    if (!email || !password) {
+
+      alert("Please fill all fields")
+
+      return
+
+    }
+
     try {
+
+      setLoading(true)
 
       const response =
         await fetch(
 
-          "http://localhost:5000/api/auth/login",
+          `${import.meta.env.VITE_API_URL}/api/auth/login`,
 
           {
 
@@ -49,9 +63,17 @@ function Login() {
       const data =
         await response.json()
 
-      console.log(data)
+      if (!response.ok) {
 
-      alert(data.message)
+        alert(
+          data.message || "Login failed"
+        )
+
+        setLoading(false)
+
+        return
+
+      }
 
       localStorage.setItem(
 
@@ -61,11 +83,19 @@ function Login() {
 
       )
 
+      alert("Login successful")
+
       navigate("/dashboard")
 
     } catch (error) {
 
       console.log(error)
+
+      alert("Server error")
+
+    } finally {
+
+      setLoading(false)
 
     }
 
@@ -77,9 +107,13 @@ function Login() {
 
       <div style={styles.card}>
 
-        <h1>
-          Login
+        <h1 style={styles.title}>
+          DevMind AI
         </h1>
+
+        <p style={styles.subtitle}>
+          Login to continue
+        </p>
 
         <input
 
@@ -119,11 +153,37 @@ function Login() {
 
           style={styles.button}
 
+          disabled={loading}
+
         >
 
-          Login
+          {
+            loading
+              ? "Loading..."
+              : "Login"
+          }
 
         </button>
+
+        <p style={styles.text}>
+
+          Don't have an account?{" "}
+
+          <span
+
+            onClick={() =>
+              navigate("/signup")
+            }
+
+            style={styles.link}
+
+          >
+
+            Signup
+
+          </span>
+
+        </p>
 
       </div>
 
@@ -163,7 +223,30 @@ const styles = {
 
     gap: "20px",
 
-    width: "400px"
+    width: "400px",
+
+    boxShadow:
+      "0 0 30px rgba(0,0,0,0.5)"
+
+  },
+
+  title: {
+
+    color: "white",
+
+    textAlign: "center",
+
+    marginBottom: "0px"
+
+  },
+
+  subtitle: {
+
+    color: "#94a3b8",
+
+    textAlign: "center",
+
+    marginTop: "-10px"
 
   },
 
@@ -179,7 +262,9 @@ const styles = {
 
     color: "white",
 
-    fontSize: "16px"
+    fontSize: "16px",
+
+    outline: "none"
 
   },
 
@@ -198,10 +283,31 @@ const styles = {
 
     fontSize: "16px",
 
-    cursor: "pointer"
+    cursor: "pointer",
+
+    fontWeight: "bold"
+
+  },
+
+  text: {
+
+    color: "white",
+
+    textAlign: "center"
+
+  },
+
+  link: {
+
+    color: "#8b5cf6",
+
+    cursor: "pointer",
+
+    fontWeight: "bold"
 
   }
 
 }
 
 export default Login
+
