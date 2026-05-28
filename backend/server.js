@@ -16,10 +16,12 @@ connectDB()
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: [
+    "https://devmind-ai-ebdn.vercel.app",
+    "https://devmind-ai-ebdn-git-main-ayan-gupta-s-projects.vercel.app"
+  ],
   credentials: true
 }))
-
 app.use(express.json())
 
 // Auth Routes
