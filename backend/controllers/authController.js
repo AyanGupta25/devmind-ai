@@ -1,5 +1,5 @@
 const User =
-  require("../models/User")
+  require("../models/UserModel")
 
 const bcrypt =
   require("bcryptjs")
