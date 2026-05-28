@@ -1,13 +1,11 @@
 import {
-
+  BrowserRouter,
   Routes,
   Route,
   Navigate
-
 } from "react-router-dom"
 
 import Login from "./pages/Login"
-
 import Signup from "./pages/Signup"
 
 import Dashboard from "./components/Dashboard"
@@ -15,58 +13,51 @@ import Dashboard from "./components/Dashboard"
 function App() {
 
   const token =
-    localStorage.getItem(
-      "token"
-    )
+    localStorage.getItem("token")
 
   return (
 
-    <Routes>
+    <BrowserRouter>
 
-      <Route
+      <Routes>
 
-        path="/login"
+        <Route
 
-        element={<Login />}
+          path="/"
 
-      />
+          element={<Login />}
 
-      <Route
+        />
 
-        path="/signup"
+        <Route
 
-        element={<Signup />}
+          path="/signup"
 
-      />
+          element={<Signup />}
 
-      <Route
+        />
 
-        path="/dashboard"
+        <Route
 
-        element={
+          path="/dashboard"
 
-          token
-            ? <Dashboard />
-            : <Navigate to="/login" />
+          element={
 
-        }
+            token
+              ? <Dashboard />
+              : <Navigate to="/" />
 
-      />
+          }
 
-      <Route
+        />
 
-        path="*"
+      </Routes>
 
-        element={
-          <Navigate to="/login" />
-        }
-
-      />
-
-    </Routes>
+    </BrowserRouter>
 
   )
 
 }
 
 export default App
+
