@@ -80,12 +80,10 @@ function Dashboard({ onLogout }) {
   const [darkMode, setDarkMode] = useState(true)
   const [useProfile, setUseProfile] = useState(true)
   const [profile, setProfile] = useState(null)
-
-  // Rename/Delete state
   const [menuOpenId, setMenuOpenId] = useState(null)
   const [renamingId, setRenamingId] = useState(null)
   const [renameValue, setRenameValue] = useState("")
-
+  const [activeTitle, setActiveTitle] = useState("New Chat")
   const chatEndRef = useRef(null)
 
   useEffect(() => {
@@ -97,7 +95,6 @@ function Dashboard({ onLogout }) {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [chat])
 
-  // Close menu when clicking outside
   useEffect(() => {
     function handleClick() { setMenuOpenId(null) }
     window.addEventListener("click", handleClick)
@@ -127,6 +124,7 @@ function Dashboard({ onLogout }) {
   function openConversation(conversation) {
     setConversationId(conversation._id)
     setActiveConversation(conversation._id)
+    setActiveTitle(conversation.title)
     setTypingIndex(null)
     setChat(conversation.messages.map((msg) => ({
       sender: msg.role === "assistant" ? "ai" : "user",
@@ -137,13 +135,66 @@ function Dashboard({ onLogout }) {
   function newChat() {
     setConversationId(null)
     setActiveConversation(null)
+    setActiveTitle("New Chat")
     setTypingIndex(null)
     setChat([])
   }
 
   // ==============================
-  // RENAME CONVERSATION
+  // EXPORT AS PDF
   // ==============================
+  function exportPDF() {
+    if (chat.length === 0) {
+      alert("No conversation to export.")
+      return
+    }
+
+    const printWindow = window.open("", "_blank")
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${activeTitle} — DevMind AI</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #0f172a; }
+          h1 { font-size: 22px; color: #7c3aed; margin-bottom: 4px; }
+          .meta { font-size: 13px; color: #64748b; margin-bottom: 32px; }
+          .message { margin-bottom: 24px; }
+          .label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+          .user .label { color: #2563eb; }
+          .ai .label { color: #7c3aed; }
+          .bubble { padding: 14px 18px; border-radius: 12px; line-height: 1.7; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+          .user .bubble { background: #eff6ff; border: 1px solid #bfdbfe; }
+          .ai .bubble { background: #f5f3ff; border: 1px solid #ddd6fe; }
+          pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+          .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; }
+          @media print { body { margin: 20px; } }
+        </style>
+      </head>
+      <body>
+        <h1>💬 ${activeTitle}</h1>
+        <div class="meta">Exported from DevMind AI · ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</div>
+        ${chat.map((msg) => `
+          <div class="message ${msg.sender}">
+            <div class="label">${msg.sender === "user" ? "You" : "DevMind AI"}</div>
+            <div class="bubble">${msg.text.replace(/```([\s\S]*?)```/g, "<pre>$1</pre>").replace(/\n/g, "<br/>")}</div>
+          </div>
+        `).join("")}
+        <div class="footer">DevMind AI — Your Developer Intelligence Platform</div>
+      </body>
+      </html>
+    `
+
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => {
+      printWindow.print()
+    }, 500)
+  }
+
   async function renameConversation(id) {
     if (!renameValue.trim()) return
     try {
@@ -155,15 +206,13 @@ function Dashboard({ onLogout }) {
         },
         body: JSON.stringify({ title: renameValue })
       })
+      if (activeConversation === id) setActiveTitle(renameValue)
       setRenamingId(null)
       setRenameValue("")
       fetchConversations()
     } catch (error) { console.log(error) }
   }
 
-  // ==============================
-  // DELETE CONVERSATION
-  // ==============================
   async function deleteConversation(id) {
     if (!window.confirm("Delete this conversation?")) return
     try {
@@ -256,8 +305,6 @@ function Dashboard({ onLogout }) {
         <div style={styles.history}>
           {conversations.map((conv) => (
             <div key={conv._id} style={{ position: "relative" }}>
-
-              {/* RENAMING MODE */}
               {renamingId === conv._id ? (
                 <div style={styles.renameBox}>
                   <input
@@ -268,7 +315,7 @@ function Dashboard({ onLogout }) {
                       if (e.key === "Enter") renameConversation(conv._id)
                       if (e.key === "Escape") { setRenamingId(null); setRenameValue("") }
                     }}
-                    style={{ ...styles.renameInput, backgroundColor: theme.inputBg, color: theme.text, border: `1px solid #7c3aed` }}
+                    style={{ ...styles.renameInput, backgroundColor: theme.inputBg, color: theme.text, border: "1px solid #7c3aed" }}
                   />
                   <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
                     <button onClick={() => renameConversation(conv._id)} style={styles.renameSaveBtn}>Save</button>
@@ -276,44 +323,28 @@ function Dashboard({ onLogout }) {
                   </div>
                 </div>
               ) : (
-                <div
-                  style={{
-                    ...( activeConversation === conv._id ? styles.activeHistoryItem : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }),
-                    display: "flex", justifyContent: "space-between", alignItems: "center"
-                  }}
-                >
+                <div style={{
+                  ...(activeConversation === conv._id ? styles.activeHistoryItem : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }),
+                  display: "flex", justifyContent: "space-between", alignItems: "center"
+                }}>
                   <span onClick={() => openConversation(conv)} style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {conv.title}
                   </span>
-
-                  {/* THREE DOT MENU */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === conv._id ? null : conv._id) }}
                     style={{ ...styles.menuDotBtn, color: activeConversation === conv._id ? "white" : theme.subtext }}
-                  >
-                    ⋯
-                  </button>
+                  >⋯</button>
 
-                  {/* DROPDOWN */}
                   {menuOpenId === conv._id && (
                     <div style={{ ...styles.dropdown, backgroundColor: theme.sidebar, border: `1px solid ${theme.border}` }}>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setRenamingId(conv._id)
-                          setRenameValue(conv.title)
-                          setMenuOpenId(null)
-                        }}
+                        onClick={(e) => { e.stopPropagation(); setRenamingId(conv._id); setRenameValue(conv.title); setMenuOpenId(null) }}
                         style={{ ...styles.dropdownItem, color: theme.text }}
-                      >
-                        ✏️ Rename
-                      </button>
+                      >✏️ Rename</button>
                       <button
                         onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id) }}
                         style={{ ...styles.dropdownItem, color: "#ef4444" }}
-                      >
-                        🗑️ Delete
-                      </button>
+                      >🗑️ Delete</button>
                     </div>
                   )}
                 </div>
@@ -337,6 +368,14 @@ function Dashboard({ onLogout }) {
             )}
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+
+            {/* EXPORT PDF BUTTON — only shows when chat is open */}
+            {chat.length > 0 && (
+              <button onClick={exportPDF} style={styles.exportBtn}>
+                📄 Export PDF
+              </button>
+            )}
+
             <button onClick={() => setDarkMode(!darkMode)} style={{ ...styles.modeBtn, borderColor: theme.border, color: theme.text }}>
               {darkMode ? "☀️ Light" : "🌙 Dark"}
             </button>
@@ -440,6 +479,7 @@ const styles = {
   main: { flex: 1, display: "flex", flexDirection: "column", padding: "30px", height: "100vh" },
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" },
   heading: { fontSize: "32px", fontWeight: "bold", margin: 0 },
+  exportBtn: { padding: "10px 16px", borderRadius: "12px", border: "1px solid #7c3aed", backgroundColor: "#7c3aed22", color: "#a78bfa", cursor: "pointer", fontSize: "13px", fontWeight: "600" },
   modeBtn: { padding: "10px 16px", borderRadius: "12px", border: "1px solid", backgroundColor: "transparent", cursor: "pointer", fontSize: "13px" },
   logoutButton: { padding: "10px 20px", borderRadius: "12px", border: "none", background: "linear-gradient(to right, #ef4444, #dc2626)", color: "white", cursor: "pointer" },
   emptyState: { marginTop: "80px", textAlign: "center" },
