@@ -8,6 +8,8 @@ const jwt = require("jsonwebtoken")
 const connectDB = require("./config/db")
 const authRoutes = require("./routes/authRoutes")
 const profileRoutes = require("./routes/profileRoutes")
+const chatRoutes = require("./routes/chatRoutes")
+const userRoutes = require("./routes/userRoutes")
 const Conversation = require("./models/Conversation")
 const DevProfile = require("./models/DevProfile")
 
@@ -26,6 +28,8 @@ app.use(express.json())
 // Routes
 app.use("/api/auth", authRoutes)
 app.use("/api/profile", profileRoutes)
+app.use("/api", chatRoutes)
+app.use("/api/user", userRoutes)
 
 
 // ==============================
@@ -44,7 +48,7 @@ app.post("/api/chat", async (req, res) => {
     // Build system prompt
     let systemPrompt = "You are DevMind AI, an advanced AI assistant helping developers build projects, debug code, explain programming concepts, and manage software engineering tasks."
 
-    // If user wants profile-based responses, inject their profile
+    // Inject dev profile if enabled
     if (useProfile) {
       const profile = await DevProfile.findOne({ user: decoded.id })
       if (profile) {
