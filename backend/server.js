@@ -7,7 +7,9 @@ const jwt = require("jsonwebtoken")
 
 const connectDB = require("./config/db")
 const authRoutes = require("./routes/authRoutes")
+const profileRoutes = require("./routes/profileRoutes")
 const Conversation = require("./models/Conversation")
+const DevProfile = require("./models/DevProfile")
 
 const app = express()
 
@@ -16,48 +18,54 @@ connectDB()
 
 // Middleware
 app.use(cors({
-  origin: [
-    "https://devmind-ai-ebdn.vercel.app",
-    "https://devmind-ai-ebdn-git-main-ayan-gupta-s-projects.vercel.app"
-  ],
+  origin: process.env.FRONTEND_URL || "http://localhost:5173",
   credentials: true
 }))
 app.use(express.json())
 
-// Auth Routes
+// Routes
 app.use("/api/auth", authRoutes)
+app.use("/api/profile", profileRoutes)
 
 
 // ==============================
 // AI CHAT ROUTE
 // ==============================
-
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message, conversationId } = req.body
+    const { message, conversationId, useProfile } = req.body
 
     const authHeader = req.headers.authorization
-    if (!authHeader) {
-      return res.status(401).json({ error: "No token provided" })
-    }
+    if (!authHeader) return res.status(401).json({ error: "No token provided" })
 
     const token = authHeader.split(" ")[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
-    let aiMessages = [
-      {
-        role: "system",
-        content: "You are DevMind AI, an advanced AI assistant helping developers build projects, debug code, explain programming concepts, and manage software engineering tasks."
+    // Build system prompt
+    let systemPrompt = "You are DevMind AI, an advanced AI assistant helping developers build projects, debug code, explain programming concepts, and manage software engineering tasks."
+
+    // If user wants profile-based responses, inject their profile
+    if (useProfile) {
+      const profile = await DevProfile.findOne({ user: decoded.id })
+      if (profile) {
+        systemPrompt += `\n\nDev Profile of this user:
+- Stack: ${profile.stack.join(", ")}
+- Experience Level: ${profile.experience}
+- Preferred Language: ${profile.preferredLanguage}
+- Coding Style: ${profile.codingStyle}
+- Current Project: ${profile.projectDescription}
+
+Always tailor your answers to this developer's stack and experience level. Use ${profile.preferredLanguage} by default unless they ask for something else. Use ${profile.codingStyle} for indentation.`
       }
-    ]
+    }
+
+    let aiMessages = [{ role: "system", content: systemPrompt }]
 
     let conversation
 
     if (conversationId) {
       conversation = await Conversation.findById(conversationId)
-      if (!conversation) {
-        return res.status(404).json({ error: "Conversation not found" })
-      }
+      if (!conversation) return res.status(404).json({ error: "Conversation not found" })
       conversation.messages.forEach((msg) => {
         aiMessages.push({ role: msg.role, content: msg.content })
       })
@@ -67,10 +75,7 @@ app.post("/api/chat", async (req, res) => {
 
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "openai/gpt-3.5-turbo",
-        messages: aiMessages
-      },
+      { model: "openai/gpt-3.5-turbo", messages: aiMessages },
       {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -108,19 +113,15 @@ app.post("/api/chat", async (req, res) => {
 // ==============================
 // GET CONVERSATIONS
 // ==============================
-
 app.get("/api/chats", async (req, res) => {
   try {
     const authHeader = req.headers.authorization
-    if (!authHeader) {
-      return res.status(401).json({ error: "No token provided" })
-    }
+    if (!authHeader) return res.status(401).json({ error: "No token provided" })
 
     const token = authHeader.split(" ")[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
 
     const conversations = await Conversation.find({ user: decoded.id }).sort({ createdAt: -1 })
-
     res.json(conversations)
 
   } catch (error) {
@@ -133,7 +134,6 @@ app.get("/api/chats", async (req, res) => {
 // ==============================
 // TEST ROUTE
 // ==============================
-
 app.get("/", (req, res) => {
   res.json({ message: "DevMind AI Backend Running" })
 })
@@ -142,9 +142,7 @@ app.get("/", (req, res) => {
 // ==============================
 // START SERVER
 // ==============================
-
 const PORT = process.env.PORT || 5000
-
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
