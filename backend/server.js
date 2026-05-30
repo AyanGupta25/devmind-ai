@@ -19,17 +19,15 @@ connectDB()
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true)
-    if (origin.includes("vercel.app") || origin.includes("localhost")) {
-      return callback(null, true)
-    }
-    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
-      return callback(null, true)
-    }
+    if (origin.includes("vercel.app") || origin.includes("localhost")) return callback(null, true)
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true)
     callback(new Error("Not allowed by CORS"))
   },
   credentials: true
 }))
-app.use(express.json())
+
+// Increase limit for base64 images
+app.use(express.json({ limit: "10mb" }))
 
 app.use("/api/auth", authRoutes)
 app.use("/api/profile", profileRoutes)
@@ -37,11 +35,11 @@ app.use("/api/user", userRoutes)
 
 
 // ==============================
-// AI CHAT ROUTE
+// AI CHAT ROUTE (with image support)
 // ==============================
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message, conversationId, useProfile } = req.body
+    const { message, conversationId, useProfile, image } = req.body
 
     const authHeader = req.headers.authorization
     if (!authHeader) return res.status(401).json({ error: "No token provided" })
@@ -67,6 +65,7 @@ Always tailor your answers to this developer's stack and experience level. Use $
 
     let aiMessages = [{ role: "system", content: systemPrompt }]
     let conversation
+    let modelToUse = "openai/gpt-3.5-turbo"
 
     if (conversationId) {
       conversation = await Conversation.findById(conversationId)
@@ -76,11 +75,23 @@ Always tailor your answers to this developer's stack and experience level. Use $
       })
     }
 
-    aiMessages.push({ role: "user", content: message })
+    // If image is attached, use vision model and build vision message
+    if (image) {
+      modelToUse = "google/gemini-2.0-flash-exp:free"
+      aiMessages.push({
+        role: "user",
+        content: [
+          { type: "text", text: message },
+          { type: "image_url", image_url: { url: image } }
+        ]
+      })
+    } else {
+      aiMessages.push({ role: "user", content: message })
+    }
 
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
-      { model: "openai/gpt-3.5-turbo", messages: aiMessages },
+      { model: modelToUse, messages: aiMessages },
       {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -122,13 +133,10 @@ app.get("/api/chats", async (req, res) => {
   try {
     const authHeader = req.headers.authorization
     if (!authHeader) return res.status(401).json({ error: "No token provided" })
-
     const token = authHeader.split(" ")[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
     const conversations = await Conversation.find({ user: decoded.id }).sort({ createdAt: -1 })
     res.json(conversations)
-
   } catch (error) {
     console.log(error)
     res.status(500).json({ error: "Failed to fetch conversations" })
@@ -143,20 +151,15 @@ app.put("/api/chats/:id/rename", async (req, res) => {
   try {
     const authHeader = req.headers.authorization
     if (!authHeader) return res.status(401).json({ error: "No token provided" })
-
     const token = authHeader.split(" ")[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
     const conversation = await Conversation.findOneAndUpdate(
       { _id: req.params.id, user: decoded.id },
       { title: req.body.title },
       { new: true }
     )
-
     if (!conversation) return res.status(404).json({ error: "Conversation not found" })
-
     res.json({ message: "Renamed successfully", conversation })
-
   } catch (error) {
     console.log(error)
     res.status(500).json({ error: "Failed to rename" })
@@ -171,19 +174,11 @@ app.delete("/api/chats/:id", async (req, res) => {
   try {
     const authHeader = req.headers.authorization
     if (!authHeader) return res.status(401).json({ error: "No token provided" })
-
     const token = authHeader.split(" ")[1]
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
-    const conversation = await Conversation.findOneAndDelete({
-      _id: req.params.id,
-      user: decoded.id
-    })
-
+    const conversation = await Conversation.findOneAndDelete({ _id: req.params.id, user: decoded.id })
     if (!conversation) return res.status(404).json({ error: "Conversation not found" })
-
     res.json({ message: "Deleted successfully" })
-
   } catch (error) {
     console.log(error)
     res.status(500).json({ error: "Failed to delete" })

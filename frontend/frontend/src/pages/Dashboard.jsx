@@ -84,6 +84,12 @@ function Dashboard({ onLogout }) {
   const [renamingId, setRenamingId] = useState(null)
   const [renameValue, setRenameValue] = useState("")
   const [activeTitle, setActiveTitle] = useState("New Chat")
+
+  // Image upload state
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const fileInputRef = useRef(null)
+
   const chatEndRef = useRef(null)
 
   useEffect(() => {
@@ -128,7 +134,8 @@ function Dashboard({ onLogout }) {
     setTypingIndex(null)
     setChat(conversation.messages.map((msg) => ({
       sender: msg.role === "assistant" ? "ai" : "user",
-      text: msg.content
+      text: msg.content,
+      image: msg.image || null
     })))
   }
 
@@ -138,61 +145,76 @@ function Dashboard({ onLogout }) {
     setActiveTitle("New Chat")
     setTypingIndex(null)
     setChat([])
+    setSelectedImage(null)
+    setImagePreview(null)
+  }
+
+  // ==============================
+  // IMAGE SELECTION
+  // ==============================
+  function handleImageSelect(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image must be under 5MB")
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setSelectedImage(reader.result) // base64
+      setImagePreview(reader.result)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function removeImage() {
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   // ==============================
   // EXPORT AS PDF
   // ==============================
   function exportPDF() {
-    if (chat.length === 0) {
-      alert("No conversation to export.")
-      return
-    }
-
+    if (chat.length === 0) { alert("No conversation to export."); return }
     const printWindow = window.open("", "_blank")
-
     const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${activeTitle} — DevMind AI</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #0f172a; }
-          h1 { font-size: 22px; color: #7c3aed; margin-bottom: 4px; }
-          .meta { font-size: 13px; color: #64748b; margin-bottom: 32px; }
-          .message { margin-bottom: 24px; }
-          .label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
-          .user .label { color: #2563eb; }
-          .ai .label { color: #7c3aed; }
-          .bubble { padding: 14px 18px; border-radius: 12px; line-height: 1.7; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
-          .user .bubble { background: #eff6ff; border: 1px solid #bfdbfe; }
-          .ai .bubble { background: #f5f3ff; border: 1px solid #ddd6fe; }
-          pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
-          .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; }
-          @media print { body { margin: 20px; } }
-        </style>
-      </head>
-      <body>
-        <h1>💬 ${activeTitle}</h1>
-        <div class="meta">Exported from DevMind AI · ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</div>
-        ${chat.map((msg) => `
-          <div class="message ${msg.sender}">
-            <div class="label">${msg.sender === "user" ? "You" : "DevMind AI"}</div>
-            <div class="bubble">${msg.text.replace(/```([\s\S]*?)```/g, "<pre>$1</pre>").replace(/\n/g, "<br/>")}</div>
+      <!DOCTYPE html><html><head><meta charset="utf-8" />
+      <title>${activeTitle} — DevMind AI</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #0f172a; }
+        h1 { font-size: 22px; color: #7c3aed; margin-bottom: 4px; }
+        .meta { font-size: 13px; color: #64748b; margin-bottom: 32px; }
+        .message { margin-bottom: 24px; }
+        .label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .user .label { color: #2563eb; } .ai .label { color: #7c3aed; }
+        .bubble { padding: 14px 18px; border-radius: 12px; line-height: 1.7; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+        .user .bubble { background: #eff6ff; border: 1px solid #bfdbfe; }
+        .ai .bubble { background: #f5f3ff; border: 1px solid #ddd6fe; }
+        pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+        img { max-width: 300px; border-radius: 8px; margin-bottom: 8px; display: block; }
+        .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center; }
+        @media print { body { margin: 20px; } }
+      </style></head><body>
+      <h1>💬 ${activeTitle}</h1>
+      <div class="meta">Exported from DevMind AI · ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</div>
+      ${chat.map((msg) => `
+        <div class="message ${msg.sender}">
+          <div class="label">${msg.sender === "user" ? "You" : "DevMind AI"}</div>
+          <div class="bubble">
+            ${msg.image ? `<img src="${msg.image}" />` : ""}
+            ${msg.text.replace(/```([\s\S]*?)```/g, "<pre>$1</pre>").replace(/\n/g, "<br/>")}
           </div>
-        `).join("")}
-        <div class="footer">DevMind AI — Your Developer Intelligence Platform</div>
-      </body>
-      </html>
+        </div>
+      `).join("")}
+      <div class="footer">DevMind AI — Your Developer Intelligence Platform</div>
+      </body></html>
     `
-
     printWindow.document.write(htmlContent)
     printWindow.document.close()
     printWindow.focus()
-    setTimeout(() => {
-      printWindow.print()
-    }, 500)
+    setTimeout(() => { printWindow.print() }, 500)
   }
 
   async function renameConversation(id) {
@@ -200,10 +222,7 @@ function Dashboard({ onLogout }) {
     try {
       await fetch(`${API_URL}/api/chats/${id}/rename`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
         body: JSON.stringify({ title: renameValue })
       })
       if (activeConversation === id) setActiveTitle(renameValue)
@@ -225,12 +244,26 @@ function Dashboard({ onLogout }) {
     } catch (error) { console.log(error) }
   }
 
+  // ==============================
+  // SEND MESSAGE (with optional image)
+  // ==============================
   async function sendMessage() {
-    if (!message.trim() || loading) return
+    if (!message.trim() && !selectedImage) return
+    if (loading) return
+
     setLoading(true)
-    const currentMessage = message
-    setChat((prev) => [...prev, { sender: "user", text: currentMessage }])
+    const currentMessage = message || "What's in this image?"
+    const currentImage = selectedImage
+
+    setChat((prev) => [...prev, {
+      sender: "user",
+      text: currentMessage,
+      image: currentImage
+    }])
     setMessage("")
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
 
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
@@ -239,7 +272,12 @@ function Dashboard({ onLogout }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`
         },
-        body: JSON.stringify({ message: currentMessage, conversationId, useProfile })
+        body: JSON.stringify({
+          message: currentMessage,
+          conversationId,
+          useProfile,
+          image: currentImage
+        })
       })
 
       const data = await response.json()
@@ -272,10 +310,8 @@ function Dashboard({ onLogout }) {
       {/* SIDEBAR */}
       <div style={{ ...styles.sidebar, backgroundColor: theme.sidebar, borderRight: `1px solid ${theme.border}` }}>
         <h2 style={{ ...styles.logo, color: theme.text }}>DevMind AI</h2>
-
         <button onClick={newChat} style={styles.newChatButton}>+ New Chat</button>
 
-        {/* PROFILE BOX */}
         {profile && (
           <div style={{ ...styles.profileBox, borderColor: theme.border }}>
             <div style={styles.profileTop}>
@@ -284,37 +320,25 @@ function Dashboard({ onLogout }) {
               <button onClick={() => navigate("/setup")} style={styles.editProfileBtn}>Edit</button>
             </div>
             <div style={styles.profileStack}>
-              {profile.stack.slice(0, 4).map((s) => (
-                <span key={s} style={styles.stackTag}>{s}</span>
-              ))}
+              {profile.stack.slice(0, 4).map((s) => (<span key={s} style={styles.stackTag}>{s}</span>))}
               {profile.stack.length > 4 && <span style={styles.stackTag}>+{profile.stack.length - 4}</span>}
             </div>
             <div style={styles.toggleRow}>
               <span style={{ color: theme.subtext, fontSize: "12px" }}>Use profile in chat</span>
-              <button
-                onClick={() => setUseProfile(!useProfile)}
-                style={{ ...styles.toggleBtn, backgroundColor: useProfile ? "#7c3aed" : theme.border }}
-              >
+              <button onClick={() => setUseProfile(!useProfile)} style={{ ...styles.toggleBtn, backgroundColor: useProfile ? "#7c3aed" : theme.border }}>
                 {useProfile ? "ON" : "OFF"}
               </button>
             </div>
           </div>
         )}
 
-        {/* HISTORY */}
         <div style={styles.history}>
           {conversations.map((conv) => (
             <div key={conv._id} style={{ position: "relative" }}>
               {renamingId === conv._id ? (
                 <div style={styles.renameBox}>
-                  <input
-                    autoFocus
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") renameConversation(conv._id)
-                      if (e.key === "Escape") { setRenamingId(null); setRenameValue("") }
-                    }}
+                  <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") renameConversation(conv._id); if (e.key === "Escape") { setRenamingId(null); setRenameValue("") } }}
                     style={{ ...styles.renameInput, backgroundColor: theme.inputBg, color: theme.text, border: "1px solid #7c3aed" }}
                   />
                   <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
@@ -323,28 +347,14 @@ function Dashboard({ onLogout }) {
                   </div>
                 </div>
               ) : (
-                <div style={{
-                  ...(activeConversation === conv._id ? styles.activeHistoryItem : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }),
-                  display: "flex", justifyContent: "space-between", alignItems: "center"
-                }}>
-                  <span onClick={() => openConversation(conv)} style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {conv.title}
-                  </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === conv._id ? null : conv._id) }}
-                    style={{ ...styles.menuDotBtn, color: activeConversation === conv._id ? "white" : theme.subtext }}
-                  >⋯</button>
-
+                <div style={{ ...(activeConversation === conv._id ? styles.activeHistoryItem : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span onClick={() => openConversation(conv)} style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{conv.title}</span>
+                  <button onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === conv._id ? null : conv._id) }}
+                    style={{ ...styles.menuDotBtn, color: activeConversation === conv._id ? "white" : theme.subtext }}>⋯</button>
                   {menuOpenId === conv._id && (
                     <div style={{ ...styles.dropdown, backgroundColor: theme.sidebar, border: `1px solid ${theme.border}` }}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setRenamingId(conv._id); setRenameValue(conv.title); setMenuOpenId(null) }}
-                        style={{ ...styles.dropdownItem, color: theme.text }}
-                      >✏️ Rename</button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id) }}
-                        style={{ ...styles.dropdownItem, color: "#ef4444" }}
-                      >🗑️ Delete</button>
+                      <button onClick={(e) => { e.stopPropagation(); setRenamingId(conv._id); setRenameValue(conv.title); setMenuOpenId(null) }} style={{ ...styles.dropdownItem, color: theme.text }}>✏️ Rename</button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id) }} style={{ ...styles.dropdownItem, color: "#ef4444" }}>🗑️ Delete</button>
                     </div>
                   )}
                 </div>
@@ -356,8 +366,6 @@ function Dashboard({ onLogout }) {
 
       {/* MAIN */}
       <div style={styles.main}>
-
-        {/* TOP BAR */}
         <div style={styles.topBar}>
           <div>
             <h1 style={{ ...styles.heading, color: theme.text }}>AI Workspace</h1>
@@ -368,14 +376,7 @@ function Dashboard({ onLogout }) {
             )}
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-
-            {/* EXPORT PDF BUTTON — only shows when chat is open */}
-            {chat.length > 0 && (
-              <button onClick={exportPDF} style={styles.exportBtn}>
-                📄 Export PDF
-              </button>
-            )}
-
+            {chat.length > 0 && <button onClick={exportPDF} style={styles.exportBtn}>📄 Export PDF</button>}
             <button onClick={() => setDarkMode(!darkMode)} style={{ ...styles.modeBtn, borderColor: theme.border, color: theme.text }}>
               {darkMode ? "☀️ Light" : "🌙 Dark"}
             </button>
@@ -383,32 +384,29 @@ function Dashboard({ onLogout }) {
           </div>
         </div>
 
-        {/* EMPTY STATE */}
         {chat.length === 0 && (
           <div style={styles.emptyState}>
             <h2 style={{ color: theme.text }}>Welcome to DevMind AI 🚀</h2>
             <p style={{ color: theme.subtext }}>
-              {useProfile && profile
-                ? `Chatting with your ${profile.experience} ${profile.preferredLanguage} profile active.`
-                : "Start a new conversation and build something amazing."
-              }
+              {useProfile && profile ? `Chatting with your ${profile.experience} ${profile.preferredLanguage} profile active.` : "Start a new conversation and build something amazing."}
             </p>
+            <p style={{ color: theme.subtext, fontSize: "13px", marginTop: "8px" }}>📎 You can also upload screenshots and images for AI to analyze</p>
           </div>
         )}
 
-        {/* CHAT */}
         <div style={styles.chatContainer}>
           {chat.map((msg, index) => (
-            <div
-              key={index}
-              style={msg.sender === "ai"
-                ? { ...styles.messageAi, backgroundColor: theme.msgAi, border: `1px solid ${theme.border}`, color: theme.text }
-                : styles.messageUser
-              }
-            >
+            <div key={index} style={msg.sender === "ai"
+              ? { ...styles.messageAi, backgroundColor: theme.msgAi, border: `1px solid ${theme.border}`, color: theme.text }
+              : styles.messageUser
+            }>
+              {/* Show image if attached */}
+              {msg.image && (
+                <img src={msg.image} alt="uploaded" style={styles.chatImage} />
+              )}
               {msg.sender === "ai"
                 ? <MessageContent text={msg.text} isNew={index === typingIndex} onDone={() => setTypingIndex(null)} />
-                : msg.text
+                : <span>{msg.text}</span>
               }
             </div>
           ))}
@@ -421,11 +419,37 @@ function Dashboard({ onLogout }) {
           <div ref={chatEndRef} />
         </div>
 
+        {/* IMAGE PREVIEW */}
+        {imagePreview && (
+          <div style={styles.imagePreviewBox}>
+            <img src={imagePreview} alt="preview" style={styles.imagePreviewImg} />
+            <button onClick={removeImage} style={styles.removeImageBtn}>✕</button>
+          </div>
+        )}
+
         {/* INPUT */}
         <div style={styles.inputArea}>
+          {/* HIDDEN FILE INPUT */}
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+            style={{ display: "none" }}
+          />
+
+          {/* IMAGE UPLOAD BUTTON */}
+          <button
+            onClick={() => fileInputRef.current.click()}
+            style={{ ...styles.uploadBtn, borderColor: theme.border, color: selectedImage ? "#7c3aed" : theme.subtext }}
+            title="Upload image"
+          >
+            📎
+          </button>
+
           <input
             type="text"
-            placeholder={useProfile && profile ? `Ask anything — your ${profile.stack[0] || ""} stack is active...` : "Ask anything..."}
+            placeholder={selectedImage ? "Ask about the image..." : useProfile && profile ? `Ask anything — your ${profile.stack[0] || ""} stack is active...` : "Ask anything..."}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") sendMessage() }}
@@ -435,23 +459,13 @@ function Dashboard({ onLogout }) {
             {loading ? "Thinking..." : "Send"}
           </button>
         </div>
-
       </div>
     </div>
   )
 }
 
-const dark = {
-  bg: "#020617", sidebar: "#0f172a", border: "#1e293b",
-  text: "white", subtext: "#94a3b8", msgAi: "#0f172a",
-  historyItem: "#111827", inputBg: "#0f172a"
-}
-
-const light = {
-  bg: "#f8fafc", sidebar: "#ffffff", border: "#e2e8f0",
-  text: "#0f172a", subtext: "#64748b", msgAi: "#ffffff",
-  historyItem: "#f1f5f9", inputBg: "#ffffff"
-}
+const dark = { bg: "#020617", sidebar: "#0f172a", border: "#1e293b", text: "white", subtext: "#94a3b8", msgAi: "#0f172a", historyItem: "#111827", inputBg: "#0f172a" }
+const light = { bg: "#f8fafc", sidebar: "#ffffff", border: "#e2e8f0", text: "#0f172a", subtext: "#64748b", msgAi: "#ffffff", historyItem: "#f1f5f9", inputBg: "#ffffff" }
 
 const styles = {
   dashboard: { minHeight: "100vh", display: "flex" },
@@ -486,7 +500,12 @@ const styles = {
   chatContainer: { flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "20px", paddingBottom: "20px" },
   messageAi: { maxWidth: "750px", padding: "20px", borderRadius: "18px", lineHeight: "1.8", fontSize: "15px" },
   messageUser: { alignSelf: "flex-end", maxWidth: "550px", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", padding: "16px 20px", borderRadius: "18px", lineHeight: "1.7", fontSize: "15px" },
-  inputArea: { display: "flex", gap: "12px", marginTop: "20px" },
+  chatImage: { maxWidth: "250px", borderRadius: "10px", marginBottom: "8px", display: "block" },
+  imagePreviewBox: { display: "flex", alignItems: "center", gap: "10px", padding: "10px 0" },
+  imagePreviewImg: { width: "60px", height: "60px", borderRadius: "8px", objectFit: "cover", border: "2px solid #7c3aed" },
+  removeImageBtn: { padding: "4px 8px", borderRadius: "6px", border: "none", backgroundColor: "#ef4444", color: "white", cursor: "pointer", fontSize: "12px" },
+  inputArea: { display: "flex", gap: "12px", marginTop: "8px", alignItems: "center" },
+  uploadBtn: { padding: "16px", borderRadius: "14px", border: "1px solid", backgroundColor: "transparent", cursor: "pointer", fontSize: "18px", flexShrink: 0 },
   input: { flex: 1, padding: "16px 20px", borderRadius: "14px", fontSize: "16px", outline: "none" },
   sendButton: { padding: "16px 28px", borderRadius: "14px", border: "none", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", cursor: "pointer", fontSize: "15px", fontWeight: "bold" },
   copyBtn: { marginTop: "10px", padding: "5px 12px", borderRadius: "8px", border: "1px solid #334155", backgroundColor: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "12px" },
