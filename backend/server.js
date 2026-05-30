@@ -8,29 +8,20 @@ const jwt = require("jsonwebtoken")
 const connectDB = require("./config/db")
 const authRoutes = require("./routes/authRoutes")
 const profileRoutes = require("./routes/profileRoutes")
-const chatRoutes = require("./routes/chatRoutes")
 const userRoutes = require("./routes/userRoutes")
 const Conversation = require("./models/Conversation")
 const DevProfile = require("./models/DevProfile")
 
 const app = express()
 
-// Connect MongoDB
 connectDB()
 
-// Middleware
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true)
-    // Allow all vercel.app URLs and localhost
-    if (
-      origin.includes("vercel.app") ||
-      origin.includes("localhost")
-    ) {
+    if (origin.includes("vercel.app") || origin.includes("localhost")) {
       return callback(null, true)
     }
-    // Allow specific custom domain if set
     if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
       return callback(null, true)
     }
@@ -40,7 +31,6 @@ app.use(cors({
 }))
 app.use(express.json())
 
-// Routes
 app.use("/api/auth", authRoutes)
 app.use("/api/profile", profileRoutes)
 app.use("/api/user", userRoutes)
@@ -142,6 +132,61 @@ app.get("/api/chats", async (req, res) => {
   } catch (error) {
     console.log(error)
     res.status(500).json({ error: "Failed to fetch conversations" })
+  }
+})
+
+
+// ==============================
+// RENAME CONVERSATION
+// ==============================
+app.put("/api/chats/:id/rename", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization
+    if (!authHeader) return res.status(401).json({ error: "No token provided" })
+
+    const token = authHeader.split(" ")[1]
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+    const conversation = await Conversation.findOneAndUpdate(
+      { _id: req.params.id, user: decoded.id },
+      { title: req.body.title },
+      { new: true }
+    )
+
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" })
+
+    res.json({ message: "Renamed successfully", conversation })
+
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({ error: "Failed to rename" })
+  }
+})
+
+
+// ==============================
+// DELETE CONVERSATION
+// ==============================
+app.delete("/api/chats/:id", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization
+    if (!authHeader) return res.status(401).json({ error: "No token provided" })
+
+    const token = authHeader.split(" ")[1]
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+    const conversation = await Conversation.findOneAndDelete({
+      _id: req.params.id,
+      user: decoded.id
+    })
+
+    if (!conversation) return res.status(404).json({ error: "Conversation not found" })
+
+    res.json({ message: "Deleted successfully" })
+
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({ error: "Failed to delete" })
   }
 })
 

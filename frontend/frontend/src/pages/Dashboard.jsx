@@ -41,7 +41,6 @@ function CopyButton({ text, small }) {
 
 function MessageContent({ text, isNew, onDone }) {
   const parts = text.split(/(```[\s\S]*?```)/g)
-
   const rendered = parts.map((part, i) => {
     if (part.startsWith("```") && part.endsWith("```")) {
       const lines = part.slice(3, -3).split("\n")
@@ -81,6 +80,12 @@ function Dashboard({ onLogout }) {
   const [darkMode, setDarkMode] = useState(true)
   const [useProfile, setUseProfile] = useState(true)
   const [profile, setProfile] = useState(null)
+
+  // Rename/Delete state
+  const [menuOpenId, setMenuOpenId] = useState(null)
+  const [renamingId, setRenamingId] = useState(null)
+  const [renameValue, setRenameValue] = useState("")
+
   const chatEndRef = useRef(null)
 
   useEffect(() => {
@@ -92,6 +97,13 @@ function Dashboard({ onLogout }) {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [chat])
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClick() { setMenuOpenId(null) }
+    window.addEventListener("click", handleClick)
+    return () => window.removeEventListener("click", handleClick)
+  }, [])
+
   async function fetchProfile() {
     try {
       const response = await fetch(`${API_URL}/api/profile`, {
@@ -99,9 +111,7 @@ function Dashboard({ onLogout }) {
       })
       const data = await response.json()
       setProfile(data)
-    } catch (error) {
-      console.log(error)
-    }
+    } catch (error) { console.log(error) }
   }
 
   async function fetchConversations() {
@@ -111,9 +121,7 @@ function Dashboard({ onLogout }) {
       })
       const data = await response.json()
       setConversations(data)
-    } catch (error) {
-      console.log(error)
-    }
+    } catch (error) { console.log(error) }
   }
 
   function openConversation(conversation) {
@@ -133,9 +141,43 @@ function Dashboard({ onLogout }) {
     setChat([])
   }
 
+  // ==============================
+  // RENAME CONVERSATION
+  // ==============================
+  async function renameConversation(id) {
+    if (!renameValue.trim()) return
+    try {
+      await fetch(`${API_URL}/api/chats/${id}/rename`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify({ title: renameValue })
+      })
+      setRenamingId(null)
+      setRenameValue("")
+      fetchConversations()
+    } catch (error) { console.log(error) }
+  }
+
+  // ==============================
+  // DELETE CONVERSATION
+  // ==============================
+  async function deleteConversation(id) {
+    if (!window.confirm("Delete this conversation?")) return
+    try {
+      await fetch(`${API_URL}/api/chats/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      })
+      if (activeConversation === id) newChat()
+      fetchConversations()
+    } catch (error) { console.log(error) }
+  }
+
   async function sendMessage() {
     if (!message.trim() || loading) return
-
     setLoading(true)
     const currentMessage = message
     setChat((prev) => [...prev, { sender: "user", text: currentMessage }])
@@ -165,7 +207,6 @@ function Dashboard({ onLogout }) {
       })
 
       fetchConversations()
-
     } catch (error) {
       console.log(error)
       alert("Something went wrong")
@@ -185,26 +226,19 @@ function Dashboard({ onLogout }) {
 
         <button onClick={newChat} style={styles.newChatButton}>+ New Chat</button>
 
-        {/* PROFILE TOGGLE */}
+        {/* PROFILE BOX */}
         {profile && (
           <div style={{ ...styles.profileBox, borderColor: theme.border }}>
             <div style={styles.profileTop}>
               <span style={styles.profileIcon}>👤</span>
               <span style={{ color: theme.text, fontSize: "13px", fontWeight: "600" }}>Dev Profile</span>
-              <button
-                onClick={() => navigate("/setup")}
-                style={styles.editProfileBtn}
-              >
-                Edit
-              </button>
+              <button onClick={() => navigate("/setup")} style={styles.editProfileBtn}>Edit</button>
             </div>
             <div style={styles.profileStack}>
               {profile.stack.slice(0, 4).map((s) => (
                 <span key={s} style={styles.stackTag}>{s}</span>
               ))}
-              {profile.stack.length > 4 && (
-                <span style={styles.stackTag}>+{profile.stack.length - 4}</span>
-              )}
+              {profile.stack.length > 4 && <span style={styles.stackTag}>+{profile.stack.length - 4}</span>}
             </div>
             <div style={styles.toggleRow}>
               <span style={{ color: theme.subtext, fontSize: "12px" }}>Use profile in chat</span>
@@ -221,15 +255,69 @@ function Dashboard({ onLogout }) {
         {/* HISTORY */}
         <div style={styles.history}>
           {conversations.map((conv) => (
-            <div
-              key={conv._id}
-              onClick={() => openConversation(conv)}
-              style={activeConversation === conv._id
-                ? styles.activeHistoryItem
-                : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }
-              }
-            >
-              {conv.title}
+            <div key={conv._id} style={{ position: "relative" }}>
+
+              {/* RENAMING MODE */}
+              {renamingId === conv._id ? (
+                <div style={styles.renameBox}>
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") renameConversation(conv._id)
+                      if (e.key === "Escape") { setRenamingId(null); setRenameValue("") }
+                    }}
+                    style={{ ...styles.renameInput, backgroundColor: theme.inputBg, color: theme.text, border: `1px solid #7c3aed` }}
+                  />
+                  <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
+                    <button onClick={() => renameConversation(conv._id)} style={styles.renameSaveBtn}>Save</button>
+                    <button onClick={() => { setRenamingId(null); setRenameValue("") }} style={styles.renameCancelBtn}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    ...( activeConversation === conv._id ? styles.activeHistoryItem : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }),
+                    display: "flex", justifyContent: "space-between", alignItems: "center"
+                  }}
+                >
+                  <span onClick={() => openConversation(conv)} style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {conv.title}
+                  </span>
+
+                  {/* THREE DOT MENU */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === conv._id ? null : conv._id) }}
+                    style={{ ...styles.menuDotBtn, color: activeConversation === conv._id ? "white" : theme.subtext }}
+                  >
+                    ⋯
+                  </button>
+
+                  {/* DROPDOWN */}
+                  {menuOpenId === conv._id && (
+                    <div style={{ ...styles.dropdown, backgroundColor: theme.sidebar, border: `1px solid ${theme.border}` }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setRenamingId(conv._id)
+                          setRenameValue(conv.title)
+                          setMenuOpenId(null)
+                        }}
+                        style={{ ...styles.dropdownItem, color: theme.text }}
+                      >
+                        ✏️ Rename
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id) }}
+                        style={{ ...styles.dropdownItem, color: "#ef4444" }}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -291,7 +379,6 @@ function Dashboard({ onLogout }) {
               <span style={{ color: theme.subtext, fontSize: "14px" }}>DevMind is thinking...</span>
             </div>
           )}
-
           <div ref={chatEndRef} />
         </div>
 
@@ -343,6 +430,13 @@ const styles = {
   history: { display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto", flex: 1 },
   historyItem: { padding: "12px 14px", borderRadius: "12px", cursor: "pointer", fontSize: "13px" },
   activeHistoryItem: { padding: "12px 14px", background: "linear-gradient(to right, #7c3aed, #2563eb)", borderRadius: "12px", cursor: "pointer", color: "white", fontSize: "13px" },
+  renameBox: { padding: "8px" },
+  renameInput: { width: "100%", padding: "8px 10px", borderRadius: "8px", fontSize: "13px", outline: "none", boxSizing: "border-box" },
+  renameSaveBtn: { padding: "5px 12px", borderRadius: "6px", border: "none", background: "#7c3aed", color: "white", cursor: "pointer", fontSize: "12px" },
+  renameCancelBtn: { padding: "5px 12px", borderRadius: "6px", border: "1px solid #334155", backgroundColor: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "12px" },
+  menuDotBtn: { background: "transparent", border: "none", cursor: "pointer", fontSize: "18px", padding: "0 4px", lineHeight: 1, flexShrink: 0 },
+  dropdown: { position: "absolute", right: 0, top: "100%", borderRadius: "10px", zIndex: 100, minWidth: "130px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", overflow: "hidden" },
+  dropdownItem: { display: "block", width: "100%", padding: "10px 14px", border: "none", backgroundColor: "transparent", cursor: "pointer", fontSize: "13px", textAlign: "left" },
   main: { flex: 1, display: "flex", flexDirection: "column", padding: "30px", height: "100vh" },
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" },
   heading: { fontSize: "32px", fontWeight: "bold", margin: 0 },
