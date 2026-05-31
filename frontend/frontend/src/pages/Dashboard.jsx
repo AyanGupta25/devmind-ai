@@ -287,11 +287,15 @@ function Dashboard({ onLogout }) {
         setActiveConversation(data.conversationId)
       }
 
-      setChat((prev) => {
-        const updated = [...prev, { sender: "ai", text: data.reply }]
-        setTypingIndex(updated.length - 1)
-        return updated
-      })
+      if (data.reply) {
+  setChat((prev) => {
+    const updated = [...prev, { sender: "ai", text: data.reply }]
+    setTypingIndex(updated.length - 1)
+    return updated
+  })
+} else {
+  setChat((prev) => [...prev, { sender: "ai", text: "Sorry, I couldn't analyze the image. Please try again." }])
+}
 
       fetchConversations()
     } catch (error) {
