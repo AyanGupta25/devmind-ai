@@ -76,7 +76,7 @@ Always tailor your answers to this developer's stack and experience level. Use $
 
     // If image attached — use free Gemini vision model
     if (image) {
-      modelToUse = "google/gemini-flash-1.5-8b"
+     modelToUse = "google/gemini-2.0-flash-thinking-exp:free"
       aiMessages.push({
         role: "user",
         content: [
