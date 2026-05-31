@@ -5,13 +5,14 @@ import Login from "./pages/Login"
 import Signup from "./pages/Signup"
 import Dashboard from "./pages/Dashboard"
 import DevProfileSetup from "./pages/DevProfileSetup"
+import LandingPage from "./pages/LandingPage"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 function App() {
 
   const [token, setToken] = useState(localStorage.getItem("token"))
-  const [hasProfile, setHasProfile] = useState(null) // null = loading
+  const [hasProfile, setHasProfile] = useState(null)
 
   useEffect(() => {
     if (token) checkProfile()
@@ -32,7 +33,7 @@ function App() {
   function handleLogin(newToken) {
     localStorage.setItem("token", newToken)
     setToken(newToken)
-    setHasProfile(null) // trigger profile check
+    setHasProfile(null)
   }
 
   function handleLogout() {
@@ -45,7 +46,6 @@ function App() {
     setHasProfile(true)
   }
 
-  // Still checking profile
   if (token && hasProfile === null) {
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#020617", display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -56,6 +56,12 @@ function App() {
 
   return (
     <Routes>
+
+      {/* LANDING PAGE — shown to non-logged-in users */}
+      <Route
+        path="/home"
+        element={token ? <Navigate to="/dashboard" /> : <LandingPage />}
+      />
 
       <Route
         path="/"
@@ -70,22 +76,18 @@ function App() {
       <Route
         path="/setup"
         element={
-          !token
-            ? <Navigate to="/" />
-            : hasProfile
-              ? <Navigate to="/dashboard" />
-              : <DevProfileSetup onDone={handleProfileDone} />
+          !token ? <Navigate to="/" />
+            : hasProfile ? <Navigate to="/dashboard" />
+            : <DevProfileSetup onDone={handleProfileDone} />
         }
       />
 
       <Route
         path="/dashboard"
         element={
-          !token
-            ? <Navigate to="/" />
-            : !hasProfile
-              ? <Navigate to="/setup" />
-              : <Dashboard onLogout={handleLogout} />
+          !token ? <Navigate to="/" />
+            : !hasProfile ? <Navigate to="/setup" />
+            : <Dashboard onLogout={handleLogout} />
         }
       />
 
