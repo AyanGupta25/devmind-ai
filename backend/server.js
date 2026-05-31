@@ -26,7 +26,6 @@ app.use(cors({
   credentials: true
 }))
 
-// Increase limit for base64 images
 app.use(express.json({ limit: "10mb" }))
 
 app.use("/api/auth", authRoutes)
@@ -75,13 +74,13 @@ Always tailor your answers to this developer's stack and experience level. Use $
       })
     }
 
-    // If image is attached, use vision model and build vision message
+    // If image attached — use free Gemini vision model
     if (image) {
-      modelToUse = "google/gemini-2.0-flash-exp:free"
+      modelToUse = "google/gemini-flash-1.5-8b"
       aiMessages.push({
         role: "user",
         content: [
-          { type: "text", text: message },
+          { type: "text", text: message || "What's in this image? Explain in detail." },
           { type: "image_url", image_url: { url: image } }
         ]
       })
@@ -89,13 +88,18 @@ Always tailor your answers to this developer's stack and experience level. Use $
       aiMessages.push({ role: "user", content: message })
     }
 
+    console.log("Using model:", modelToUse)
+    console.log("Has image:", !!image)
+
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       { model: modelToUse, messages: aiMessages },
       {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://devmind-ai-ebdn.vercel.app",
+          "X-Title": "DevMind AI"
         }
       }
     )
@@ -103,15 +107,15 @@ Always tailor your answers to this developer's stack and experience level. Use $
     const aiReply = response.data.choices[0].message.content
 
     if (conversationId) {
-      conversation.messages.push({ role: "user", content: message })
+      conversation.messages.push({ role: "user", content: message || "Image uploaded" })
       conversation.messages.push({ role: "assistant", content: aiReply })
       await conversation.save()
     } else {
       conversation = await Conversation.create({
         user: decoded.id,
-        title: message.split(" ").slice(0, 5).join(" "),
+        title: (message || "Image analysis").split(" ").slice(0, 5).join(" "),
         messages: [
-          { role: "user", content: message },
+          { role: "user", content: message || "Image uploaded" },
           { role: "assistant", content: aiReply }
         ]
       })
@@ -120,7 +124,7 @@ Always tailor your answers to this developer's stack and experience level. Use $
     res.json({ reply: aiReply, conversationId: conversation._id })
 
   } catch (error) {
-    console.log(error)
+    console.log("Chat error:", error?.response?.data || error.message)
     res.status(500).json({ error: "AI request failed" })
   }
 })
