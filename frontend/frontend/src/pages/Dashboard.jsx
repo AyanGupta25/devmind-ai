@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  const [isMobile, setIsMobile] = useState(true)
   useEffect(() => {
     function handle() { setIsMobile(window.innerWidth <= 768) }
     window.addEventListener("resize", handle)
