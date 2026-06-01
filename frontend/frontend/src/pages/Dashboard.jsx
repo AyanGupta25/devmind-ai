@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
-// Detect mobile
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   useEffect(() => {
@@ -218,10 +217,15 @@ function Dashboard({ onLogout }) {
 
   const sidebarContent = (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+
+      {/* SIDEBAR HEADER */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexShrink: 0 }}>
         <h2 style={{ fontSize: "20px", fontWeight: "bold", color: theme.text, margin: 0 }}>DevMind AI</h2>
         {isMobile && (
-          <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", color: theme.subtext, fontSize: "22px", cursor: "pointer" }}>✕</button>
+          <button onClick={() => setSidebarOpen(false)}
+            style={{ background: "#ef444422", border: "1px solid #ef4444", color: "#ef4444", fontSize: "16px", cursor: "pointer", padding: "6px 10px", borderRadius: "8px" }}>
+            ✕
+          </button>
         )}
       </div>
 
@@ -277,6 +281,14 @@ function Dashboard({ onLogout }) {
           </div>
         ))}
       </div>
+
+      {/* LOGOUT AT BOTTOM OF SIDEBAR ON MOBILE */}
+      {isMobile && (
+        <button onClick={onLogout}
+          style={{ marginTop: "12px", padding: "12px", borderRadius: "12px", border: "none", background: "linear-gradient(to right, #ef4444, #dc2626)", color: "white", cursor: "pointer", fontSize: "14px", fontWeight: "bold", flexShrink: 0 }}>
+          Logout
+        </button>
+      )}
     </div>
   )
 
@@ -285,17 +297,18 @@ function Dashboard({ onLogout }) {
 
       {/* MOBILE OVERLAY */}
       {isMobile && sidebarOpen && (
-        <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 40 }} />
+        <div onClick={() => setSidebarOpen(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", zIndex: 40 }} />
       )}
 
-      {/* SIDEBAR — desktop: always visible, mobile: slide in */}
+      {/* SIDEBAR */}
       {!isMobile ? (
         <div style={{ width: "280px", flexShrink: 0, height: "100vh", backgroundColor: theme.sidebar, borderRight: `1px solid ${theme.border}`, padding: "20px", overflow: "hidden" }}>
           {sidebarContent}
         </div>
       ) : (
         <div style={{
-          position: "fixed", top: 0, left: sidebarOpen ? 0 : "-100%", width: "280px", height: "100vh",
+          position: "fixed", top: 0, left: sidebarOpen ? 0 : "-300px", width: "280px", height: "100vh",
           backgroundColor: theme.sidebar, borderRight: `1px solid ${theme.border}`, padding: "20px",
           zIndex: 50, transition: "left 0.25s ease", overflow: "hidden"
         }}>
@@ -304,15 +317,20 @@ function Dashboard({ onLogout }) {
       )}
 
       {/* MAIN */}
-      <div style={{ flex: 1, minWidth: 0, height: "100vh", display: "flex", flexDirection: "column", padding: isMobile ? "16px" : "24px", overflow: "hidden" }}>
+      <div style={{ flex: 1, minWidth: 0, height: "100vh", display: "flex", flexDirection: "column", padding: isMobile ? "14px" : "24px", overflow: "hidden" }}>
 
         {/* TOP BAR */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexShrink: 0, gap: "8px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-            {/* HAMBURGER on mobile */}
+
+            {/* HAMBURGER — purple pill, always visible */}
             {isMobile && (
-              <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", color: theme.text, fontSize: "22px", cursor: "pointer", flexShrink: 0 }}>☰</button>
+              <button onClick={() => setSidebarOpen(true)}
+                style={{ background: "linear-gradient(to right, #7c3aed, #2563eb)", border: "none", color: "white", fontSize: "18px", cursor: "pointer", flexShrink: 0, padding: "8px 14px", borderRadius: "10px", fontWeight: "bold" }}>
+                ☰
+              </button>
             )}
+
             <div style={{ minWidth: 0 }}>
               <h1 style={{ fontSize: isMobile ? "18px" : "26px", fontWeight: "bold", margin: 0, color: theme.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {isMobile ? "DevMind AI" : "AI Workspace"}
@@ -328,18 +346,19 @@ function Dashboard({ onLogout }) {
             <button onClick={() => setDarkMode(!darkMode)} style={{ ...styles.modeBtn, borderColor: theme.border, color: theme.text }}>
               {darkMode ? "☀️" : "🌙"}
             </button>
-            <button onClick={onLogout} style={styles.logoutButton}>
-              {isMobile ? "↩" : "Logout"}
-            </button>
+            {/* Logout only on desktop in topbar */}
+            {!isMobile && (
+              <button onClick={onLogout} style={styles.logoutButton}>Logout</button>
+            )}
           </div>
         </div>
 
         {/* EMPTY STATE */}
         {chat.length === 0 && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center", padding: "20px" }}>
-            <div style={{ fontSize: isMobile ? "40px" : "56px", marginBottom: "16px" }}>🚀</div>
+            <div style={{ fontSize: isMobile ? "48px" : "56px", marginBottom: "16px" }}>🚀</div>
             <h2 style={{ color: theme.text, fontSize: isMobile ? "20px" : "24px", marginBottom: "12px" }}>Welcome to DevMind AI</h2>
-            <p style={{ color: theme.subtext, fontSize: "14px", maxWidth: "300px", lineHeight: 1.6 }}>
+            <p style={{ color: theme.subtext, fontSize: "14px", maxWidth: "280px", lineHeight: 1.6 }}>
               {useProfile && profile ? `Your ${profile.experience} ${profile.preferredLanguage} profile is active.` : "Start a conversation and build something amazing."}
             </p>
           </div>
@@ -349,7 +368,7 @@ function Dashboard({ onLogout }) {
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px", paddingBottom: "8px", minHeight: 0 }}>
           {chat.map((msg, index) => (
             <div key={index} style={msg.sender === "ai"
-              ? { ...styles.messageAi, backgroundColor: theme.msgAi, border: `1px solid ${theme.border}`, color: theme.text, maxWidth: isMobile ? "90%" : "700px" }
+              ? { ...styles.messageAi, backgroundColor: theme.msgAi, border: `1px solid ${theme.border}`, color: theme.text, maxWidth: isMobile ? "92%" : "700px" }
               : { ...styles.messageUser, maxWidth: isMobile ? "85%" : "520px" }
             }>
               {msg.image && <img src={msg.image} alt="uploaded" style={{ maxWidth: "180px", borderRadius: "8px", marginBottom: "8px", display: "block" }} />}
@@ -386,7 +405,7 @@ function Dashboard({ onLogout }) {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") sendMessage() }}
-            style={{ ...styles.input, backgroundColor: theme.inputBg, color: theme.text, border: `1px solid ${theme.border}`, fontSize: isMobile ? "16px" : "15px" }}
+            style={{ ...styles.input, backgroundColor: theme.inputBg, color: theme.text, border: `1px solid ${theme.border}`, fontSize: "16px" }}
           />
           <button onClick={sendMessage} style={styles.sendButton} disabled={loading}>
             {loading ? "..." : "Send"}
