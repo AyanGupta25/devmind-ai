@@ -3,10 +3,20 @@ import { useNavigate } from "react-router-dom"
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000"
 
+// Detect mobile
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  useEffect(() => {
+    function handle() { setIsMobile(window.innerWidth <= 768) }
+    window.addEventListener("resize", handle)
+    return () => window.removeEventListener("resize", handle)
+  }, [])
+  return isMobile
+}
+
 function TypingMessage({ text, onDone }) {
   const [displayed, setDisplayed] = useState("")
   const index = useRef(0)
-
   useEffect(() => {
     index.current = 0
     setDisplayed("")
@@ -21,7 +31,6 @@ function TypingMessage({ text, onDone }) {
     }, 12)
     return () => clearInterval(interval)
   }, [text])
-
   return <span style={{ whiteSpace: "pre-wrap" }}>{displayed}</span>
 }
 
@@ -34,7 +43,7 @@ function CopyButton({ text, small }) {
   }
   return (
     <button onClick={copy} style={small ? styles.codeTopCopyBtn : styles.copyBtn}>
-      {copied ? "✅ Copied" : "📋 Copy"}
+      {copied ? "✅" : "📋"}
     </button>
   )
 }
@@ -58,7 +67,6 @@ function MessageContent({ text, isNew, onDone }) {
     }
     return <span key={i} style={{ whiteSpace: "pre-wrap" }}>{part}</span>
   })
-
   return (
     <div>
       {isNew ? <TypingMessage text={text} onDone={onDone} /> : <div>{rendered}</div>}
@@ -68,8 +76,9 @@ function MessageContent({ text, isNew, onDone }) {
 }
 
 function Dashboard({ onLogout }) {
-
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [message, setMessage] = useState("")
   const [chat, setChat] = useState([])
   const [loading, setLoading] = useState(false)
@@ -89,15 +98,8 @@ function Dashboard({ onLogout }) {
   const fileInputRef = useRef(null)
   const chatEndRef = useRef(null)
 
-  useEffect(() => {
-    fetchConversations()
-    fetchProfile()
-  }, [])
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [chat])
-
+  useEffect(() => { fetchConversations(); fetchProfile() }, [])
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }) }, [chat])
   useEffect(() => {
     function handleClick() { setMenuOpenId(null) }
     window.addEventListener("click", handleClick)
@@ -106,22 +108,16 @@ function Dashboard({ onLogout }) {
 
   async function fetchProfile() {
     try {
-      const response = await fetch(`${API_URL}/api/profile`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      })
-      const data = await response.json()
-      setProfile(data)
-    } catch (error) { console.log(error) }
+      const r = await fetch(`${API_URL}/api/profile`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      setProfile(await r.json())
+    } catch (e) { console.log(e) }
   }
 
   async function fetchConversations() {
     try {
-      const response = await fetch(`${API_URL}/api/chats`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      })
-      const data = await response.json()
-      setConversations(data)
-    } catch (error) { console.log(error) }
+      const r = await fetch(`${API_URL}/api/chats`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      setConversations(await r.json())
+    } catch (e) { console.log(e) }
   }
 
   function openConversation(conversation) {
@@ -129,11 +125,8 @@ function Dashboard({ onLogout }) {
     setActiveConversation(conversation._id)
     setActiveTitle(conversation.title)
     setTypingIndex(null)
-    setChat(conversation.messages.map((msg) => ({
-      sender: msg.role === "assistant" ? "ai" : "user",
-      text: msg.content,
-      image: msg.image || null
-    })))
+    setChat(conversation.messages.map((msg) => ({ sender: msg.role === "assistant" ? "ai" : "user", text: msg.content, image: msg.image || null })))
+    if (isMobile) setSidebarOpen(false)
   }
 
   function newChat() {
@@ -144,6 +137,7 @@ function Dashboard({ onLogout }) {
     setChat([])
     setSelectedImage(null)
     setImagePreview(null)
+    if (isMobile) setSidebarOpen(false)
   }
 
   function handleImageSelect(e) {
@@ -164,11 +158,11 @@ function Dashboard({ onLogout }) {
   function exportPDF() {
     if (chat.length === 0) { alert("No conversation to export."); return }
     const printWindow = window.open("", "_blank")
-    const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${activeTitle} — DevMind AI</title>
-    <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:800px;margin:40px auto;padding:0 20px;color:#0f172a}h1{font-size:22px;color:#7c3aed;margin-bottom:4px}.meta{font-size:13px;color:#64748b;margin-bottom:32px}.message{margin-bottom:24px}.label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.user .label{color:#2563eb}.ai .label{color:#7c3aed}.bubble{padding:14px 18px;border-radius:12px;line-height:1.7;font-size:14px;white-space:pre-wrap;word-break:break-word}.user .bubble{background:#eff6ff;border:1px solid #bfdbfe}.ai .bubble{background:#f5f3ff;border:1px solid #ddd6fe}pre{background:#1e293b;color:#e2e8f0;padding:14px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.6}img{max-width:300px;border-radius:8px;margin-bottom:8px;display:block}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;text-align:center}@media print{body{margin:20px}}</style></head><body>
-    <h1>💬 ${activeTitle}</h1><div class="meta">Exported from DevMind AI · ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</div>
-    ${chat.map((msg) => `<div class="message ${msg.sender}"><div class="label">${msg.sender === "user" ? "You" : "DevMind AI"}</div><div class="bubble">${msg.image ? `<img src="${msg.image}" />` : ""}${msg.text.replace(/```([\s\S]*?)```/g, "<pre>$1</pre>").replace(/\n/g, "<br/>")}</div></div>`).join("")}
-    <div class="footer">DevMind AI — Your Developer Intelligence Platform</div></body></html>`
+    const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${activeTitle}</title>
+    <style>body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:0 20px;color:#0f172a}h1{color:#7c3aed}.meta{color:#64748b;font-size:13px;margin-bottom:32px}.message{margin-bottom:24px}.label{font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:6px}.user .label{color:#2563eb}.ai .label{color:#7c3aed}.bubble{padding:14px;border-radius:12px;line-height:1.7;font-size:14px;white-space:pre-wrap}.user .bubble{background:#eff6ff;border:1px solid #bfdbfe}.ai .bubble{background:#f5f3ff;border:1px solid #ddd6fe}pre{background:#1e293b;color:#e2e8f0;padding:14px;border-radius:8px;font-size:13px}.footer{margin-top:40px;border-top:1px solid #e2e8f0;padding-top:16px;color:#94a3b8;font-size:12px;text-align:center}</style></head><body>
+    <h1>💬 ${activeTitle}</h1><div class="meta">Exported from DevMind AI · ${new Date().toLocaleDateString()}</div>
+    ${chat.map((msg) => `<div class="message ${msg.sender}"><div class="label">${msg.sender === "user" ? "You" : "DevMind AI"}</div><div class="bubble">${msg.text.replace(/```([\s\S]*?)```/g, "<pre>$1</pre>").replace(/\n/g, "<br/>")}</div></div>`).join("")}
+    <div class="footer">DevMind AI</div></body></html>`
     printWindow.document.write(htmlContent)
     printWindow.document.close()
     printWindow.focus()
@@ -178,28 +172,19 @@ function Dashboard({ onLogout }) {
   async function renameConversation(id) {
     if (!renameValue.trim()) return
     try {
-      await fetch(`${API_URL}/api/chats/${id}/rename`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: JSON.stringify({ title: renameValue })
-      })
+      await fetch(`${API_URL}/api/chats/${id}/rename`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` }, body: JSON.stringify({ title: renameValue }) })
       if (activeConversation === id) setActiveTitle(renameValue)
-      setRenamingId(null)
-      setRenameValue("")
-      fetchConversations()
-    } catch (error) { console.log(error) }
+      setRenamingId(null); setRenameValue(""); fetchConversations()
+    } catch (e) { console.log(e) }
   }
 
   async function deleteConversation(id) {
     if (!window.confirm("Delete this conversation?")) return
     try {
-      await fetch(`${API_URL}/api/chats/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      })
+      await fetch(`${API_URL}/api/chats/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
       if (activeConversation === id) newChat()
       fetchConversations()
-    } catch (error) { console.log(error) }
+    } catch (e) { console.log(e) }
   }
 
   async function sendMessage() {
@@ -209,9 +194,7 @@ function Dashboard({ onLogout }) {
     const currentMessage = message || "What's in this image?"
     const currentImage = selectedImage
     setChat((prev) => [...prev, { sender: "user", text: currentMessage, image: currentImage }])
-    setMessage("")
-    setSelectedImage(null)
-    setImagePreview(null)
+    setMessage(""); setSelectedImage(null); setImagePreview(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
@@ -220,130 +203,156 @@ function Dashboard({ onLogout }) {
         body: JSON.stringify({ message: currentMessage, conversationId, useProfile, image: currentImage })
       })
       const data = await response.json()
-      if (!conversationId && data.conversationId) {
-        setConversationId(data.conversationId)
-        setActiveConversation(data.conversationId)
-      }
+      if (!conversationId && data.conversationId) { setConversationId(data.conversationId); setActiveConversation(data.conversationId) }
       if (data.reply) {
-        setChat((prev) => {
-          const updated = [...prev, { sender: "ai", text: data.reply }]
-          setTypingIndex(updated.length - 1)
-          return updated
-        })
+        setChat((prev) => { const updated = [...prev, { sender: "ai", text: data.reply }]; setTypingIndex(updated.length - 1); return updated })
       } else {
         setChat((prev) => [...prev, { sender: "ai", text: "Sorry, I couldn't process that. Please try again." }])
       }
       fetchConversations()
-    } catch (error) {
-      console.log(error)
-      alert("Something went wrong")
-    }
+    } catch (e) { console.log(e); alert("Something went wrong") }
     setLoading(false)
   }
 
   const theme = darkMode ? dark : light
 
-  return (
-    <div style={{ height: "100vh", width: "100vw", display: "flex", overflow: "hidden", backgroundColor: theme.bg, color: theme.text }}>
-
-      {/* SIDEBAR */}
-      <div style={{ width: "280px", flexShrink: 0, height: "100vh", display: "flex", flexDirection: "column", backgroundColor: theme.sidebar, borderRight: `1px solid ${theme.border}`, padding: "20px", overflow: "hidden" }}>
-        <h2 style={{ marginBottom: "16px", fontSize: "20px", fontWeight: "bold", color: theme.text, flexShrink: 0 }}>DevMind AI</h2>
-        <button onClick={newChat} style={styles.newChatButton}>+ New Chat</button>
-
-        {profile && (
-          <div style={{ ...styles.profileBox, borderColor: theme.border, flexShrink: 0 }}>
-            <div style={styles.profileTop}>
-              <span>👤</span>
-              <span style={{ color: theme.text, fontSize: "13px", fontWeight: "600" }}>Dev Profile</span>
-              <button onClick={() => navigate("/setup")} style={styles.editProfileBtn}>Edit</button>
-            </div>
-            <div style={styles.profileStack}>
-              {profile.stack.slice(0, 4).map((s) => (<span key={s} style={styles.stackTag}>{s}</span>))}
-              {profile.stack.length > 4 && <span style={styles.stackTag}>+{profile.stack.length - 4}</span>}
-            </div>
-            <div style={styles.toggleRow}>
-              <span style={{ color: theme.subtext, fontSize: "12px" }}>Use profile in chat</span>
-              <button onClick={() => setUseProfile(!useProfile)} style={{ ...styles.toggleBtn, backgroundColor: useProfile ? "#7c3aed" : theme.border }}>
-                {useProfile ? "ON" : "OFF"}
-              </button>
-            </div>
-          </div>
+  const sidebarContent = (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexShrink: 0 }}>
+        <h2 style={{ fontSize: "20px", fontWeight: "bold", color: theme.text, margin: 0 }}>DevMind AI</h2>
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", color: theme.subtext, fontSize: "22px", cursor: "pointer" }}>✕</button>
         )}
-
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
-          {conversations.map((conv) => (
-            <div key={conv._id} style={{ position: "relative", flexShrink: 0 }}>
-              {renamingId === conv._id ? (
-                <div style={{ padding: "6px" }}>
-                  <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") renameConversation(conv._id); if (e.key === "Escape") { setRenamingId(null); setRenameValue("") } }}
-                    style={{ ...styles.renameInput, backgroundColor: theme.inputBg, color: theme.text, border: "1px solid #7c3aed" }}
-                  />
-                  <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
-                    <button onClick={() => renameConversation(conv._id)} style={styles.renameSaveBtn}>Save</button>
-                    <button onClick={() => { setRenamingId(null); setRenameValue("") }} style={styles.renameCancelBtn}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ ...(activeConversation === conv._id ? styles.activeHistoryItem : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span onClick={() => openConversation(conv)} style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>{conv.title}</span>
-                  <button onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === conv._id ? null : conv._id) }}
-                    style={{ ...styles.menuDotBtn, color: activeConversation === conv._id ? "white" : theme.subtext }}>⋯</button>
-                  {menuOpenId === conv._id && (
-                    <div style={{ ...styles.dropdown, backgroundColor: theme.sidebar, border: `1px solid ${theme.border}` }}>
-                      <button onClick={(e) => { e.stopPropagation(); setRenamingId(conv._id); setRenameValue(conv.title); setMenuOpenId(null) }} style={{ ...styles.dropdownItem, color: theme.text }}>✏️ Rename</button>
-                      <button onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id) }} style={{ ...styles.dropdownItem, color: "#ef4444" }}>🗑️ Delete</button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* MAIN */}
-      <div style={{ flex: 1, minWidth: 0, height: "100vh", display: "flex", flexDirection: "column", padding: "24px", overflow: "hidden" }}>
+      <button onClick={newChat} style={styles.newChatButton}>+ New Chat</button>
 
-        {/* TOP BAR */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px", flexShrink: 0 }}>
-          <div>
-            <h1 style={{ fontSize: "28px", fontWeight: "bold", margin: 0, color: theme.text }}>AI Workspace</h1>
-            {useProfile && profile && (
-              <p style={{ color: "#7c3aed", fontSize: "13px", margin: "4px 0 0" }}>
-                ✦ Responding as {profile.experience} {profile.preferredLanguage} developer
-              </p>
+      {profile && (
+        <div style={{ ...styles.profileBox, borderColor: theme.border, flexShrink: 0 }}>
+          <div style={styles.profileTop}>
+            <span>👤</span>
+            <span style={{ color: theme.text, fontSize: "13px", fontWeight: "600" }}>Dev Profile</span>
+            <button onClick={() => navigate("/setup")} style={styles.editProfileBtn}>Edit</button>
+          </div>
+          <div style={styles.profileStack}>
+            {profile.stack.slice(0, 4).map((s) => (<span key={s} style={styles.stackTag}>{s}</span>))}
+            {profile.stack.length > 4 && <span style={styles.stackTag}>+{profile.stack.length - 4}</span>}
+          </div>
+          <div style={styles.toggleRow}>
+            <span style={{ color: theme.subtext, fontSize: "12px" }}>Use profile in chat</span>
+            <button onClick={() => setUseProfile(!useProfile)} style={{ ...styles.toggleBtn, backgroundColor: useProfile ? "#7c3aed" : theme.border }}>
+              {useProfile ? "ON" : "OFF"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+        {conversations.map((conv) => (
+          <div key={conv._id} style={{ position: "relative", flexShrink: 0 }}>
+            {renamingId === conv._id ? (
+              <div style={{ padding: "6px" }}>
+                <input autoFocus value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") renameConversation(conv._id); if (e.key === "Escape") { setRenamingId(null); setRenameValue("") } }}
+                  style={{ ...styles.renameInput, backgroundColor: theme.inputBg, color: theme.text, border: "1px solid #7c3aed" }}
+                />
+                <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
+                  <button onClick={() => renameConversation(conv._id)} style={styles.renameSaveBtn}>Save</button>
+                  <button onClick={() => { setRenamingId(null); setRenameValue("") }} style={styles.renameCancelBtn}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ ...(activeConversation === conv._id ? styles.activeHistoryItem : { ...styles.historyItem, backgroundColor: theme.historyItem, color: theme.subtext }), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span onClick={() => openConversation(conv)} style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}>{conv.title}</span>
+                <button onClick={(e) => { e.stopPropagation(); setMenuOpenId(menuOpenId === conv._id ? null : conv._id) }}
+                  style={{ ...styles.menuDotBtn, color: activeConversation === conv._id ? "white" : theme.subtext }}>⋯</button>
+                {menuOpenId === conv._id && (
+                  <div style={{ ...styles.dropdown, backgroundColor: theme.sidebar, border: `1px solid ${theme.border}` }}>
+                    <button onClick={(e) => { e.stopPropagation(); setRenamingId(conv._id); setRenameValue(conv.title); setMenuOpenId(null) }} style={{ ...styles.dropdownItem, color: theme.text }}>✏️ Rename</button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteConversation(conv._id) }} style={{ ...styles.dropdownItem, color: "#ef4444" }}>🗑️ Delete</button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {chat.length > 0 && <button onClick={exportPDF} style={styles.exportBtn}>📄 Export PDF</button>}
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ height: "100vh", width: "100vw", display: "flex", overflow: "hidden", backgroundColor: theme.bg, color: theme.text, position: "relative" }}>
+
+      {/* MOBILE OVERLAY */}
+      {isMobile && sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 40 }} />
+      )}
+
+      {/* SIDEBAR — desktop: always visible, mobile: slide in */}
+      {!isMobile ? (
+        <div style={{ width: "280px", flexShrink: 0, height: "100vh", backgroundColor: theme.sidebar, borderRight: `1px solid ${theme.border}`, padding: "20px", overflow: "hidden" }}>
+          {sidebarContent}
+        </div>
+      ) : (
+        <div style={{
+          position: "fixed", top: 0, left: sidebarOpen ? 0 : "-100%", width: "280px", height: "100vh",
+          backgroundColor: theme.sidebar, borderRight: `1px solid ${theme.border}`, padding: "20px",
+          zIndex: 50, transition: "left 0.25s ease", overflow: "hidden"
+        }}>
+          {sidebarContent}
+        </div>
+      )}
+
+      {/* MAIN */}
+      <div style={{ flex: 1, minWidth: 0, height: "100vh", display: "flex", flexDirection: "column", padding: isMobile ? "16px" : "24px", overflow: "hidden" }}>
+
+        {/* TOP BAR */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexShrink: 0, gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+            {/* HAMBURGER on mobile */}
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", color: theme.text, fontSize: "22px", cursor: "pointer", flexShrink: 0 }}>☰</button>
+            )}
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ fontSize: isMobile ? "18px" : "26px", fontWeight: "bold", margin: 0, color: theme.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {isMobile ? "DevMind AI" : "AI Workspace"}
+              </h1>
+              {useProfile && profile && !isMobile && (
+                <p style={{ color: "#7c3aed", fontSize: "12px", margin: "2px 0 0" }}>✦ {profile.experience} {profile.preferredLanguage} developer</p>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
+            {chat.length > 0 && !isMobile && <button onClick={exportPDF} style={styles.exportBtn}>📄 PDF</button>}
             <button onClick={() => setDarkMode(!darkMode)} style={{ ...styles.modeBtn, borderColor: theme.border, color: theme.text }}>
-              {darkMode ? "☀️ Light" : "🌙 Dark"}
+              {darkMode ? "☀️" : "🌙"}
             </button>
-            <button onClick={onLogout} style={styles.logoutButton}>Logout</button>
+            <button onClick={onLogout} style={styles.logoutButton}>
+              {isMobile ? "↩" : "Logout"}
+            </button>
           </div>
         </div>
 
         {/* EMPTY STATE */}
         {chat.length === 0 && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center" }}>
-            <h2 style={{ color: theme.text, fontSize: "24px", marginBottom: "12px" }}>Welcome to DevMind AI 🚀</h2>
-            <p style={{ color: theme.subtext, fontSize: "15px" }}>
-              {useProfile && profile ? `Chatting with your ${profile.experience} ${profile.preferredLanguage} profile active.` : "Start a new conversation and build something amazing."}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center", padding: "20px" }}>
+            <div style={{ fontSize: isMobile ? "40px" : "56px", marginBottom: "16px" }}>🚀</div>
+            <h2 style={{ color: theme.text, fontSize: isMobile ? "20px" : "24px", marginBottom: "12px" }}>Welcome to DevMind AI</h2>
+            <p style={{ color: theme.subtext, fontSize: "14px", maxWidth: "300px", lineHeight: 1.6 }}>
+              {useProfile && profile ? `Your ${profile.experience} ${profile.preferredLanguage} profile is active.` : "Start a conversation and build something amazing."}
             </p>
-            <p style={{ color: theme.subtext, fontSize: "13px", marginTop: "8px" }}>📎 Upload screenshots and images for AI to analyze</p>
           </div>
         )}
 
         {/* CHAT */}
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "16px", paddingBottom: "8px", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "12px", paddingBottom: "8px", minHeight: 0 }}>
           {chat.map((msg, index) => (
             <div key={index} style={msg.sender === "ai"
-              ? { ...styles.messageAi, backgroundColor: theme.msgAi, border: `1px solid ${theme.border}`, color: theme.text }
-              : styles.messageUser
+              ? { ...styles.messageAi, backgroundColor: theme.msgAi, border: `1px solid ${theme.border}`, color: theme.text, maxWidth: isMobile ? "90%" : "700px" }
+              : { ...styles.messageUser, maxWidth: isMobile ? "85%" : "520px" }
             }>
-              {msg.image && <img src={msg.image} alt="uploaded" style={styles.chatImage} />}
+              {msg.image && <img src={msg.image} alt="uploaded" style={{ maxWidth: "180px", borderRadius: "8px", marginBottom: "8px", display: "block" }} />}
               {msg.sender === "ai"
                 ? <MessageContent text={msg.text} isNew={index === typingIndex} onDone={() => setTypingIndex(null)} />
                 : <span>{msg.text}</span>
@@ -360,25 +369,24 @@ function Dashboard({ onLogout }) {
 
         {/* IMAGE PREVIEW */}
         {imagePreview && (
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", flexShrink: 0 }}>
-            <img src={imagePreview} alt="preview" style={{ width: "56px", height: "56px", borderRadius: "8px", objectFit: "cover", border: "2px solid #7c3aed" }} />
-            <button onClick={removeImage} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", backgroundColor: "#ef4444", color: "white", cursor: "pointer", fontSize: "12px" }}>✕ Remove</button>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 0", flexShrink: 0 }}>
+            <img src={imagePreview} alt="preview" style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover", border: "2px solid #7c3aed" }} />
+            <button onClick={removeImage} style={{ padding: "4px 8px", borderRadius: "6px", border: "none", backgroundColor: "#ef4444", color: "white", cursor: "pointer", fontSize: "12px" }}>✕</button>
           </div>
         )}
 
         {/* INPUT */}
-        <div style={{ display: "flex", gap: "10px", alignItems: "center", flexShrink: 0, paddingTop: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0, paddingTop: "6px" }}>
           <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: "none" }} />
           <button onClick={() => fileInputRef.current.click()}
-            style={{ ...styles.uploadBtn, borderColor: theme.border, color: selectedImage ? "#7c3aed" : theme.subtext }}
-            title="Upload image">📎</button>
+            style={{ ...styles.uploadBtn, borderColor: theme.border, color: selectedImage ? "#7c3aed" : theme.subtext }}>📎</button>
           <input
             type="text"
-            placeholder={selectedImage ? "Ask about the image..." : useProfile && profile ? `Ask anything — your ${profile.stack[0] || ""} stack is active...` : "Ask anything..."}
+            placeholder="Ask anything..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") sendMessage() }}
-            style={{ ...styles.input, backgroundColor: theme.inputBg, color: theme.text, border: `1px solid ${theme.border}` }}
+            style={{ ...styles.input, backgroundColor: theme.inputBg, color: theme.text, border: `1px solid ${theme.border}`, fontSize: isMobile ? "16px" : "15px" }}
           />
           <button onClick={sendMessage} style={styles.sendButton} disabled={loading}>
             {loading ? "..." : "Send"}
@@ -393,7 +401,7 @@ const dark = { bg: "#020617", sidebar: "#0f172a", border: "#1e293b", text: "whit
 const light = { bg: "#f8fafc", sidebar: "#ffffff", border: "#e2e8f0", text: "#0f172a", subtext: "#64748b", msgAi: "#ffffff", historyItem: "#f1f5f9", inputBg: "#ffffff" }
 
 const styles = {
-  newChatButton: { padding: "12px", borderRadius: "12px", border: "none", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", cursor: "pointer", marginBottom: "14px", fontSize: "14px", flexShrink: 0 },
+  newChatButton: { padding: "12px", borderRadius: "12px", border: "none", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", cursor: "pointer", marginBottom: "14px", fontSize: "14px", flexShrink: 0, width: "100%" },
   profileBox: { border: "1px solid", borderRadius: "12px", padding: "12px", marginBottom: "14px" },
   profileTop: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" },
   editProfileBtn: { marginLeft: "auto", padding: "3px 8px", borderRadius: "6px", border: "1px solid #334155", backgroundColor: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "11px" },
@@ -409,16 +417,15 @@ const styles = {
   menuDotBtn: { background: "transparent", border: "none", cursor: "pointer", fontSize: "16px", padding: "0 4px", lineHeight: 1, flexShrink: 0 },
   dropdown: { position: "absolute", right: 0, top: "100%", borderRadius: "10px", zIndex: 100, minWidth: "120px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", overflow: "hidden" },
   dropdownItem: { display: "block", width: "100%", padding: "9px 12px", border: "none", backgroundColor: "transparent", cursor: "pointer", fontSize: "13px", textAlign: "left" },
-  exportBtn: { padding: "8px 14px", borderRadius: "10px", border: "1px solid #7c3aed", backgroundColor: "#7c3aed22", color: "#a78bfa", cursor: "pointer", fontSize: "12px", fontWeight: "600" },
-  modeBtn: { padding: "8px 14px", borderRadius: "10px", border: "1px solid", backgroundColor: "transparent", cursor: "pointer", fontSize: "12px" },
-  logoutButton: { padding: "8px 16px", borderRadius: "10px", border: "none", background: "linear-gradient(to right, #ef4444, #dc2626)", color: "white", cursor: "pointer", fontSize: "13px" },
-  messageAi: { maxWidth: "700px", padding: "16px 20px", borderRadius: "16px", lineHeight: "1.8", fontSize: "14px" },
-  messageUser: { alignSelf: "flex-end", maxWidth: "520px", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", padding: "14px 18px", borderRadius: "16px", lineHeight: "1.7", fontSize: "14px" },
-  chatImage: { maxWidth: "220px", borderRadius: "8px", marginBottom: "8px", display: "block" },
-  uploadBtn: { padding: "14px", borderRadius: "12px", border: "1px solid", backgroundColor: "transparent", cursor: "pointer", fontSize: "16px", flexShrink: 0 },
-  input: { flex: 1, padding: "14px 18px", borderRadius: "12px", fontSize: "15px", outline: "none", minWidth: 0 },
-  sendButton: { padding: "14px 24px", borderRadius: "12px", border: "none", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", cursor: "pointer", fontSize: "14px", fontWeight: "bold", flexShrink: 0 },
-  copyBtn: { marginTop: "8px", padding: "4px 10px", borderRadius: "6px", border: "1px solid #334155", backgroundColor: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "11px" },
+  exportBtn: { padding: "8px 12px", borderRadius: "10px", border: "1px solid #7c3aed", backgroundColor: "#7c3aed22", color: "#a78bfa", cursor: "pointer", fontSize: "12px", fontWeight: "600" },
+  modeBtn: { padding: "8px 12px", borderRadius: "10px", border: "1px solid", backgroundColor: "transparent", cursor: "pointer", fontSize: "14px" },
+  logoutButton: { padding: "8px 14px", borderRadius: "10px", border: "none", background: "linear-gradient(to right, #ef4444, #dc2626)", color: "white", cursor: "pointer", fontSize: "13px" },
+  messageAi: { padding: "14px 18px", borderRadius: "16px", lineHeight: "1.8", fontSize: "14px" },
+  messageUser: { alignSelf: "flex-end", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", padding: "12px 16px", borderRadius: "16px", lineHeight: "1.7", fontSize: "14px" },
+  uploadBtn: { padding: "12px", borderRadius: "12px", border: "1px solid", backgroundColor: "transparent", cursor: "pointer", fontSize: "16px", flexShrink: 0 },
+  input: { flex: 1, padding: "12px 16px", borderRadius: "12px", outline: "none", minWidth: 0 },
+  sendButton: { padding: "12px 20px", borderRadius: "12px", border: "none", background: "linear-gradient(to right, #7c3aed, #2563eb)", color: "white", cursor: "pointer", fontSize: "14px", fontWeight: "bold", flexShrink: 0 },
+  copyBtn: { marginTop: "6px", padding: "3px 8px", borderRadius: "6px", border: "1px solid #334155", backgroundColor: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: "11px" },
   codeBlock: { backgroundColor: "#0d1117", borderRadius: "10px", overflow: "hidden", margin: "8px 0" },
   codeHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 14px", backgroundColor: "#161b22", borderBottom: "1px solid #30363d" },
   codeLang: { color: "#8b949e", fontSize: "12px", fontFamily: "monospace" },
